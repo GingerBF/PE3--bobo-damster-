@@ -158,7 +158,7 @@ class MyDAQ:
             writeTask.start()
             elapsed_time = time.perf_counter() - start_time
             print(f"writeTask.start took {elapsed_time:.6f} seconds.") 
-
+            elapsed_time = 0
             data = readTask.read(number_of_samples_per_channel=(samples - int(elapsed_time * self.samplerate)), timeout=timeout)
 
             return np.asarray(data)
