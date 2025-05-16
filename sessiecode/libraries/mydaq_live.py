@@ -13,7 +13,7 @@ from scipy.optimize import curve_fit
 from scipy.optimize import minimize_scalar
 import time
 
-class MyDAQ:
+class MyDAQlive:
     def __init__(self):
         self.__samplerate = None
         self.__name = None
