@@ -420,25 +420,4 @@ class MyDAQ:
         
         return H_magnitudes, H_phaseshifts
     
-    @staticmethod
-    def Q_points_finder(
-        freqs: np.ndarray, 
-        mags: np.ndarray
-    )   -> np.ndarray:
-        y_target = np.max(mags) - 3
-        interpolator = interp1d(freqs, mags, kind='linear', fill_value="extrapolate")
-        def f(x_val):
-            return interpolator(x_val) - y_target
-
-        results = root_scalar(f, bracket=[freqs[0], freqs[-1]], method='brentq')
-        return results
     
-    @staticmethod
-    def find_zero_crossings(x, y):
-        zero_crossings = []
-        for i in range(len(y) - 1):
-            if y[i] * y[i + 1] < 0:  # Check for a sign change
-                # Linear interpolation to find the x value at y=0
-                x_zero = x[i] + (0 - y[i]) * (x[i + 1] - x[i]) / (y[i + 1] - y[i])
-                zero_crossings.append(x_zero)
-        return zero_crossings
