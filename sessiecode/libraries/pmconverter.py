@@ -131,7 +131,7 @@ class PMConverter:
 
         return amplitude, phase
 
-    def retrieve_phases(self, data, samplerate, sps, carierFrequency):
+    def retrieve_phases(self, data, samplerate, sps, carrierFrequency):
         amplitudes = []
         phases = []
         times = []
@@ -143,7 +143,7 @@ class PMConverter:
             end = start + sps
             chunk = data[start:end]
 
-            amp, phase = lock_in_amplifier(chunk, samplerate, data)
+            amp, phase = self.lock_in_amplifier(data, samplerate, carrierFrequency)
 
             amplitudes.append(amp)
             phases.append(phase)
