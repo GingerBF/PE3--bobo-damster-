@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import butter, filtfilt
-
+import matplotlib.pyplot as plt
 
 class PMConverter:
     def __init__(self):
@@ -45,13 +45,15 @@ class PMConverter:
             binary_msg = ''
             for i in range(0, len(fm_signal), 1):  # Changed to step=1 to match encoding
                 phase = fm_signal[i]
-                if phase == 0:
+                if phase + 10 <= 0:
+                    phase += 360
+                if np.abs(phase) <= 1:
                     binary_msg += '00'
-                elif phase == 90:
+                elif np.abs(phase - 90) <= 1:
                     binary_msg += '01'
-                elif phase == 180:
+                elif np.abs(phase - 180) <= 1 or np.abs(phase + 180) <= 1:
                     binary_msg += '10'
-                elif phase == 270:
+                elif np.abs(phase - 270) <= 1:
                     binary_msg += '11'
                 else:
                     raise ValueError(f"Unexpected phase value: {phase}")
@@ -84,14 +86,32 @@ class PMConverter:
             raise ValueError("Unsupported FM type. Use 1 or 2.")
         
     def pm_to_voltage_array(self, pmSignal, sps, f, fs, A):
+        num_samples = len(pmSignal) * sps
+        duration = num_samples / fs
+        tArray = np.arange(num_samples) / (num_samples / duration)
+
+        voltageArray = []
+        phases = []
+        for i in range(0, len(tArray)):
+            phase = pmSignal[i//sps]
+            phases.append(phase)
+            voltageArray.append(np.sin(2 * np.pi * f * tArray[i] + np.deg2rad(phase)))
+
+        plt.scatter(np.arange(len(phases)), phases)
+        plt.show()
+
+        return voltageArray
+
+
         sampleTime = 1/fs
         pmSamples = np.repeat(pmSignal, sps)
-    	
-        refSigDuration = 10 * sps * sampleTime
+        duration = len(pmSignal) * sps * sampleTime
+        print('duration pm_to_voltage_array', duration)
+        #t = np.linspace(0, 2, 2 * fs)
+        #tref = np.linspace(2, 2 + 10 * sps * sampleTime, 10 * sps)
+        #tsig = np.linspace(2 + refSigDuration, 2 + refSigDuration + len(pmSamples) * sps * sampleTime, len(pmSamples))
 
-        t = np.linspace(0, 2, 2 * fs)
-        tref = np.linspace(2, 2 + 10 * sps * sampleTime, 10 * sps)
-        tsig = np.linspace(2 + refSigDuration, 2 + refSigDuration + len(pmSamples) * sps * sampleTime, len(pmSamples))
+        tArray = np.arange(len(pmSamples)) / duration
 
         voltageArray = []
         #for t in t:
@@ -99,7 +119,7 @@ class PMConverter:
         #for t in tref:
         #    voltageArray.append(A * np.sin(t * f * 2 * np.pi))
         for i in range(0, len(pmSamples)):
-            voltageArray.append(A * np.sin(tsig[i] * f * 2 * np.pi + np.deg2rad(pmSamples[i])))
+            voltageArray.append(A * np.sin(tArray[i] * f * 2 * np.pi + np.deg2rad(pmSamples[i])))
         return np.array(voltageArray)
     
 
@@ -110,26 +130,17 @@ class PMConverter:
         timeArray = np.linspace(0, len(ratios)*sps/fs, len(ratios)*sps)
         voltageArray = []
 
-    import numpy as np
-
-    def lock_in_amplifier(self, voltages, samplerate, carrierFrequency):
-
-        t = np.arange(len(voltages)) / samplerate
-
-        time = len(voltages) / samplerate
-
-        # Reference signals
-        ref_cos = np.cos(2 * np.pi * carrierFrequency * t)
-        ref_sin = np.sin(2 * np.pi * carrierFrequency * t)
+    def lock_in_amplifier(self, voltages, samplerate, carrierFrequency, ref_sin_chunk, ref_cos_chunk, t):
 
         # Mix (multiply) input with references
-        X = voltages * ref_cos
-        Y = voltages * ref_sin
+        X = voltages * ref_cos_chunk
+        Y = voltages * ref_sin_chunk
 
-        X_amp = 1 / time * np.trapezoid(t, X)
-        Y_amp = 1 / time * np.trapezoid(t, Y)
+        time = len(voltages) / samplerate
+        X_amp = np.sum(X)#1 / time * np.trapezoid(t, X)
+        Y_amp = np.sum(Y)#1 / time * np.trapezoid(t, Y)
 
-        print(X_amp, Y_amp)
+        #print(X_amp, Y_amp)
         # Low-pass filter the mixed signals to extract DC component
         def lowpass(signal, cutoff=carrierFrequency / 5, order=3):
             nyquist = 0.5 * samplerate
@@ -147,7 +158,7 @@ class PMConverter:
         phase = np.arctan2(np.mean(Y_filtered), np.mean(X_filtered))
 
         amplitude = 2 * np.sqrt(X_amp**2 + Y_amp**2)
-        phase = np.arctan2(Y_amp, X_amp)
+        phase = np.arctan2(X_amp, Y_amp)
 
         return amplitude, phase
 
@@ -156,14 +167,29 @@ class PMConverter:
         phases = []
         times = []
 
-        n_chunks = len(data) // sps
-        print(n_chunks)
-        for i in range(n_chunks):
-            start = int((i + 0.5) * sps)
-            end = start + sps
-            chunk = data[start:end]
+        timeArray = np.arange(len(data)) / samplerate
 
-            amp, phase = self.lock_in_amplifier(data, samplerate, carrierFrequency)
+        #print('retrieve duration:', timeArray[-1])
+
+        ref_sin = np.sin(timeArray * 2 * np.pi * carrierFrequency)
+        ref_cos = np.cos(timeArray * 2 * np.pi * carrierFrequency)
+
+        n_chunks = len(data) // sps
+
+        #print(n_chunks)
+        for i in range(n_chunks):
+            start = int((i) * sps)
+            end = (i + 1) * sps
+            chunk = data[start:end]
+            ref_cos_chunk = ref_cos[start:end]
+            ref_sin_chunk = ref_sin[start:end]
+            #plt.plot(range(start, end), chunk)
+            #plt.plot(range(start, end), ref_sin_chunk)
+            #plt.plot(range(start, end), ref_cos_chunk)
+            #plt.show()
+
+            amp, phase = self.lock_in_amplifier(chunk, samplerate, carrierFrequency, ref_sin_chunk, ref_cos_chunk, timeArray[start:end])
+            #print(phase)
 
             amplitudes.append(amp)
             phases.append(phase)
