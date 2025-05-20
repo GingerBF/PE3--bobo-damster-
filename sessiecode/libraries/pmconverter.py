@@ -86,11 +86,20 @@ class PMConverter:
     def pm_to_voltage_array(self, pmSignal, sps, f, fs, A):
         sampleTime = 1/fs
         pmSamples = np.repeat(pmSignal, sps)
+    	
+        refSigDuration = 10 * sps * sampleTime
 
-        #print(pmSamples)
+        t = np.linspace(0, 2, 2 * fs)
+        tref = np.linspace(2, 2 + 10 * sps * sampleTime, 10 * sps)
+        tsig = np.linspace(2 + refSigDuration, 2 + refSigDuration + len(pmSamples) * sps * sampleTime, len(pmSamples))
+
         voltageArray = []
+        #for t in t:
+        #    voltageArray.append(0.0)
+        #for t in tref:
+        #    voltageArray.append(A * np.sin(t * f * 2 * np.pi))
         for i in range(0, len(pmSamples)):
-            voltageArray.append(A * np.sin(sampleTime * i * f * 2 * np.pi + np.deg2rad(pmSamples[i])))
+            voltageArray.append(A * np.sin(tsig[i] * f * 2 * np.pi + np.deg2rad(pmSamples[i])))
         return np.array(voltageArray)
     
 
@@ -107,6 +116,8 @@ class PMConverter:
 
         t = np.arange(len(voltages)) / samplerate
 
+        time = len(voltages) / samplerate
+
         # Reference signals
         ref_cos = np.cos(2 * np.pi * carrierFrequency * t)
         ref_sin = np.sin(2 * np.pi * carrierFrequency * t)
@@ -115,6 +126,10 @@ class PMConverter:
         X = voltages * ref_cos
         Y = voltages * ref_sin
 
+        X_amp = 1 / time * np.trapezoid(t, X)
+        Y_amp = 1 / time * np.trapezoid(t, Y)
+
+        print(X_amp, Y_amp)
         # Low-pass filter the mixed signals to extract DC component
         def lowpass(signal, cutoff=carrierFrequency / 5, order=3):
             nyquist = 0.5 * samplerate
@@ -125,9 +140,14 @@ class PMConverter:
         X_filtered = lowpass(X)
         Y_filtered = lowpass(Y)
 
+
+
         # Compute amplitude and phase
         amplitude = 2 * np.sqrt(np.mean(X_filtered**2 + Y_filtered**2))
         phase = np.arctan2(np.mean(Y_filtered), np.mean(X_filtered))
+
+        amplitude = 2 * np.sqrt(X_amp**2 + Y_amp**2)
+        phase = np.arctan2(Y_amp, X_amp)
 
         return amplitude, phase
 
@@ -137,9 +157,9 @@ class PMConverter:
         times = []
 
         n_chunks = len(data) // sps
-
+        print(n_chunks)
         for i in range(n_chunks):
-            start = i * sps
+            start = int((i + 0.5) * sps)
             end = start + sps
             chunk = data[start:end]
 
