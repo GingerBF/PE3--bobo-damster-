@@ -38,7 +38,7 @@ class PMConverter:
 
     def pm_to_binary(self, fm_signal, fmType):
         if fmType == 1:
-            binary_msg = ''.join('0' if phase == 0 else '1' for phase in fm_signal)
+            binary_msg = ''.join('0' if np.abs(phase) <= 1 else '1' for phase in fm_signal)
             return ' '.join(binary_msg[i:i+8] for i in range(0, len(binary_msg), 8))
 
         elif fmType == 2:
@@ -85,43 +85,23 @@ class PMConverter:
         else:
             raise ValueError("Unsupported FM type. Use 1 or 2.")
         
-    def pm_to_voltage_array(self, pmSignal, sps, f, fs, A):
-        num_samples = len(pmSignal) * sps
+    def pm_to_voltage_array(self, pmSignal, sps, f, fs, A, pmConfigurationSignal):
+        pmSignalFull = np.concatenate([pmConfigurationSignal, pmSignal])
+        num_samples = len(pmSignalFull) * sps
         duration = num_samples / fs
         tArray = np.arange(num_samples) / (num_samples / duration)
 
         voltageArray = []
         phases = []
         for i in range(0, len(tArray)):
-            phase = pmSignal[i//sps]
+            phase = pmSignalFull[i//sps]
             phases.append(phase)
-            voltageArray.append(np.sin(2 * np.pi * f * tArray[i] + np.deg2rad(phase)))
+            voltageArray.append(A * np.sin(2 * np.pi * f * tArray[i] + np.deg2rad(phase)))
 
         plt.scatter(np.arange(len(phases)), phases)
         plt.show()
 
-        return voltageArray
-
-
-        sampleTime = 1/fs
-        pmSamples = np.repeat(pmSignal, sps)
-        duration = len(pmSignal) * sps * sampleTime
-        print('duration pm_to_voltage_array', duration)
-        #t = np.linspace(0, 2, 2 * fs)
-        #tref = np.linspace(2, 2 + 10 * sps * sampleTime, 10 * sps)
-        #tsig = np.linspace(2 + refSigDuration, 2 + refSigDuration + len(pmSamples) * sps * sampleTime, len(pmSamples))
-
-        tArray = np.arange(len(pmSamples)) / duration
-
-        voltageArray = []
-        #for t in t:
-        #    voltageArray.append(0.0)
-        #for t in tref:
-        #    voltageArray.append(A * np.sin(t * f * 2 * np.pi))
-        for i in range(0, len(pmSamples)):
-            voltageArray.append(A * np.sin(tArray[i] * f * 2 * np.pi + np.deg2rad(pmSamples[i])))
         return np.array(voltageArray)
-    
 
     def pm_to_ratios(self, fm_signal):
         return np.array([np.cos(np.radians(phi)) for phi in fm_signal], [np.sin(np.radians(phi)) for phi in fm_signal])
@@ -130,11 +110,14 @@ class PMConverter:
         timeArray = np.linspace(0, len(ratios)*sps/fs, len(ratios)*sps)
         voltageArray = []
 
-    def lock_in_amplifier(self, voltages, samplerate, carrierFrequency, ref_sin_chunk, ref_cos_chunk, t):
+    def lock_in_amplifier(self, voltages, samplerate, carrierFrequency, t):
 
         # Mix (multiply) input with references
-        X = voltages * ref_cos_chunk
-        Y = voltages * ref_sin_chunk
+        ref_sin = np.sin(t * 2 * np.pi * carrierFrequency)
+        ref_cos = np.cos(t * 2 * np.pi * carrierFrequency)
+
+        X = voltages * ref_cos
+        Y = voltages * ref_sin
 
         time = len(voltages) / samplerate
         X_amp = np.sum(X)#1 / time * np.trapezoid(t, X)
@@ -188,7 +171,7 @@ class PMConverter:
             #plt.plot(range(start, end), ref_cos_chunk)
             #plt.show()
 
-            amp, phase = self.lock_in_amplifier(chunk, samplerate, carrierFrequency, ref_sin_chunk, ref_cos_chunk, timeArray[start:end])
+            amp, phase = self.lock_in_amplifier(chunk, samplerate, carrierFrequency, timeArray[start:end])
             #print(phase)
 
             amplitudes.append(amp)
@@ -199,3 +182,29 @@ class PMConverter:
             times.append(center_time)
 
         return np.array(times), np.array(amplitudes), np.array(phases)
+    
+    def configuring_signal(self, samplerate, sps, time):
+        timePerSample = 1 / samplerate
+        numZeroSymbols = int(time / (timePerSample * sps))
+        numZeroSymbols += 8 - (numZeroSymbols % 8) - 2
+        signalZeroes = np.full(numZeroSymbols, 0)
+        signalEnd = np.full(10, 180)
+        signal = np.concatenate([signalZeroes, signalEnd])
+        
+        return signal
+    
+    def configure_signal(self, data, samplerate, carrierfrequency, sps, numConfigOnes):
+        confStartIndex = int(np.argmax(data > 0.1))
+        confEndIndex = int(confStartIndex + 5 * sps)
+        tArray = np.arange(len(data)) / samplerate
+
+        lockInAmpData = [self.lock_in_amplifier(
+                                            data[i:i+int(0.8*sps)], 
+                                            samplerate,
+                                            carrierfrequency, 
+                                            tArray[i:i+int(0.8*sps)]
+                                            ) 
+                    for i in range(confStartIndex, confEndIndex)]
+        print(lockInAmpData)
+        plt.scatter(range(0, len(lockInAmpData[0])), lockInAmpData[0])
+        plt.show()
