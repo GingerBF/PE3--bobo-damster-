@@ -161,6 +161,31 @@ class MyDAQ:
             data = readTask.read(number_of_samples_per_channel=(samples - int(elapsed_time * self.samplerate)), timeout=timeout)
 
             return np.asarray(data)
+        
+    def readwrite(
+        self,
+        voltages: np.ndarray,
+        readChannels: str | list[str],
+        writeChannels: str | list[str],
+        timeout: float = 300,
+    ) -> np.ndarray:
+        samples = max(voltages.shape)
+
+        with dx.Task("read") as readTask, dx.Task("write") as writeTask:
+            self._addOutputChannels(writeTask, writeChannels)
+            self._addInputChannels(readTask, readChannels)
+
+            self._configureChannelTimings(writeTask, samples)
+            self._configureChannelTimings(readTask, samples)
+
+            # Start writing. Since reading is a blocking function, there
+            # is no need to sleep and wait for writing to finish.
+            writeTask.write(voltages)
+
+            writeTask.start()
+            data = readTask.read(number_of_samples_per_channel=samples, timeout=timeout)
+
+            return np.asarray(data)
 
     @staticmethod
     def generateWaveform(

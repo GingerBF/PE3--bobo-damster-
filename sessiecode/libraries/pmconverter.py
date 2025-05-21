@@ -98,9 +98,6 @@ class PMConverter:
             phases.append(phase)
             voltageArray.append(A * np.sin(2 * np.pi * f * tArray[i] + np.deg2rad(phase)))
 
-        plt.scatter(np.arange(len(phases)), phases)
-        plt.show()
-
         return np.array(voltageArray)
 
     def pm_to_ratios(self, fm_signal):
@@ -122,7 +119,7 @@ class PMConverter:
         time = len(voltages) / samplerate
         X_amp = np.sum(X)#1 / time * np.trapezoid(t, X)
         Y_amp = np.sum(Y)#1 / time * np.trapezoid(t, Y)
-
+        '''
         #print(X_amp, Y_amp)
         # Low-pass filter the mixed signals to extract DC component
         def lowpass(signal, cutoff=carrierFrequency / 5, order=3):
@@ -134,11 +131,12 @@ class PMConverter:
         X_filtered = lowpass(X)
         Y_filtered = lowpass(Y)
 
-
+        
 
         # Compute amplitude and phase
         amplitude = 2 * np.sqrt(np.mean(X_filtered**2 + Y_filtered**2))
         phase = np.arctan2(np.mean(Y_filtered), np.mean(X_filtered))
+        '''
 
         amplitude = 2 * np.sqrt(X_amp**2 + Y_amp**2)
         phase = np.arctan2(X_amp, Y_amp)
@@ -183,15 +181,12 @@ class PMConverter:
 
         return np.array(times), np.array(amplitudes), np.array(phases)
     
-    def configuring_signal(self, samplerate, sps, time):
-        timePerSample = 1 / samplerate
-        numZeroSymbols = int(time / (timePerSample * sps))
-        numZeroSymbols += 8 - (numZeroSymbols % 8) - 2
-        signalZeroes = np.full(numZeroSymbols, 0)
-        signalEnd = np.full(10, 180)
-        signal = np.concatenate([signalZeroes, signalEnd])
-        
-        return signal
+    def configuring_signal(self, samplerate, sps, times):
+        signal = []
+        for i in range(0, times):
+            signal.append(0)
+            signal.append(180)
+        return np.array(signal)
     
     def configure_signal(self, data, samplerate, carrierfrequency, sps, numConfigOnes):
         confStartIndex = int(np.argmax(data > 0.1))
@@ -203,7 +198,7 @@ class PMConverter:
                                             samplerate,
                                             carrierfrequency, 
                                             tArray[i:i+int(0.8*sps)]
-                                            ) 
+                                            )
                     for i in range(confStartIndex, confEndIndex)]
         print(lockInAmpData)
         plt.scatter(range(0, len(lockInAmpData[0])), lockInAmpData[0])
