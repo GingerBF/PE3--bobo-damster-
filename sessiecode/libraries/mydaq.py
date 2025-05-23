@@ -444,4 +444,22 @@ class MyDAQ:
         
         return H_magnitudes, H_phaseshifts
     
+    @staticmethod
+    def performRFFT(data: np.ndarray, samplerate : int, norm='forward'):
+
+        complex_coefficients = rfft(data, norm=norm)
+        frequencies = rfftfreq(len(data), 1 / samplerate)
+        if norm =='forward':
+            complex_coefficients[1:-1] *= 2  # Correct scaling to show accurate 
+        
+        if norm =='backward':
+            pass
+        return frequencies, complex_coefficients
+    
+    @staticmethod
+    def performIRFFT(complex_coefficients, norm='forward'):
+        complex_coefficients[1:-1] /= 2    
+        original_data = irfft(complex_coefficients, norm=norm)    
+        return original_data
+    
     
