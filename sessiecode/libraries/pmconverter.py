@@ -44,8 +44,25 @@ class PMConverter:
 
     def pm_to_binary(self, fm_signal, fmType):
         if fmType == 1:
-            binary_msg = ''.join('0' if np.abs(phase) <= 1 else '1' for phase in fm_signal)
-            return ' '.join(binary_msg[i:i+8] for i in range(0, len(binary_msg), 8))
+            fm_signal = np.array(fm_signal)
+
+            from sklearn.cluster import KMeans
+
+            X = fm_signal.reshape(-1, 1)
+
+            kmeans = KMeans(n_clusters=2, n_init=10, random_state=0)
+            labels = kmeans.fit_predict(X)
+
+            centers = kmeans.cluster_centers_.flatten()
+            center_0, center_1 = sorted(centers)  # Ensure consistent labeling
+
+            # Assign bit '0' to the smaller phase center, '1' to the other
+            bits = np.where(fm_signal < (center_0 + center_1) / 2, 0, 1)
+
+            # Step 3: Invert the bits
+            inverted_bits = 1 - bits
+
+            return bits, inverted_bits
 
         elif fmType == 2:
             binary_msg = ''
@@ -149,7 +166,7 @@ class PMConverter:
 
         return amplitude, phase
 
-    def retrieve_phases(self, data, samplerate, sps, carrierFrequency):
+    def retrieve_phases(self, data, samplerate, sps, carrierFrequency, plot=False):
         amplitudes = []
         phases = []
         times = []
@@ -170,10 +187,16 @@ class PMConverter:
             chunk = data[start:end]
             ref_cos_chunk = ref_cos[start:end]
             ref_sin_chunk = ref_sin[start:end]
-            #plt.plot(range(start, end), chunk)
-            #plt.plot(range(start, end), ref_sin_chunk)
-            #plt.plot(range(start, end), ref_cos_chunk)
-            #plt.show()
+            if plot and i % 100 == 0 and i > 0:
+                plt_start = int((i) * sps) - 100
+                plt_end = (i + 1) * sps + 100
+                print(len(data), plt_start, plt_end, len(chunk))
+
+                plt_chunk = data[plt_start:plt_end]
+                plt.plot(range(plt_start, plt_end), plt_chunk)
+                plt.axvline(start, color='red', linestyle='--', label='Start of chunk')
+                plt.axvline(end, color='green', linestyle='--', label='End of chunk')
+                plt.show()
 
             amp, phase = self.lock_in_amplifier(chunk, samplerate, carrierFrequency, timeArray[start:end])
             #print(phase)
