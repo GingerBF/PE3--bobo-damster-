@@ -6,6 +6,12 @@ class PMConverter:
     def __init__(self):
         pass
 
+    def bits_to_binary_string(self, bits):
+        return ' '.join(
+            ''.join(str(b) for b in bits[i:i+8])
+            for i in range(0, len(bits), 8)
+        )
+
     @staticmethod
     def text_to_binary(text):
         return ' '.join(format(ord(char), '08b') for char in text)
@@ -85,7 +91,7 @@ class PMConverter:
         else:
             raise ValueError("Unsupported FM type. Use 1 or 2.")
         
-    def pm_to_voltage_array(self, pmSignal, sps, f, fs, A, pmConfigurationSignal):
+    def pm_to_voltage_array(self, pmSignal, sps, f, fs, A, pmConfigurationSignal = np.array([])):
         pmSignalFull = np.concatenate([pmConfigurationSignal, pmSignal])
         num_samples = len(pmSignalFull) * sps
         duration = num_samples / fs
