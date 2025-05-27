@@ -49,11 +49,12 @@ class PMConverter:
             from sklearn.cluster import KMeans
 
             X = fm_signal.reshape(-1, 1)
-
             kmeans = KMeans(n_clusters=2, n_init=10, random_state=0)
+            print(kmeans)
             labels = kmeans.fit_predict(X)
 
             centers = kmeans.cluster_centers_.flatten()
+            print('centers: ', centers)
             center_0, center_1 = sorted(centers)  # Ensure consistent labeling
 
             # Assign bit '0' to the smaller phase center, '1' to the other
@@ -166,7 +167,7 @@ class PMConverter:
 
         return amplitude, phase
 
-    def retrieve_phases(self, data, samplerate, sps, carrierFrequency, plot=False):
+    def retrieve_phases(self, data, samplerate, sps, carrierFrequency, plot=False, plotL=1000):
         amplitudes = []
         phases = []
         times = []
@@ -187,7 +188,7 @@ class PMConverter:
             chunk = data[start:end]
             ref_cos_chunk = ref_cos[start:end]
             ref_sin_chunk = ref_sin[start:end]
-            if plot and i % 100 == 0 and i > 0:
+            if plot and i % plotL == 0 and i > 0:
                 plt_start = int((i) * sps) - 100
                 plt_end = (i + 1) * sps + 100
                 print(len(data), plt_start, plt_end, len(chunk))
